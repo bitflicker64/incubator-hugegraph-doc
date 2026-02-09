@@ -15,11 +15,11 @@ Apache HugeGraph 是一套完整的图数据库生态系统，支持 OLTP 实时
 
 | 我想要... | 从这里开始 |
 |----------|-----------|
-| **运行图查询** (OLTP) | [HugeGraph Server 快速开始](quickstart/hugegraph/hugegraph-server.md) |
-| **大规模图计算** (OLAP) | [图计算引擎](quickstart/computing/hugegraph-computer.md) |
-| **构建 AI/RAG 应用** | [HugeGraph-AI](quickstart/hugegraph-ai) |
-| **批量导入数据** | [HugeGraph Loader](quickstart/hugegraph-loader) |
-| **可视化管理图** | [Hubble Web UI](quickstart/hugegraph-hubble) |
+| **运行图查询** (OLTP) | [HugeGraph Server 快速开始](quickstart/hugegraph/hugegraph-server) |
+| **大规模图计算** (OLAP) | [图计算引擎](quickstart/computing/hugegraph-computer) |
+| **构建 AI/RAG 应用** | [HugeGraph-AI](quickstart/hugegraph-ai/quick_start) |
+| **批量导入数据** | [HugeGraph Loader](quickstart/toolchain/hugegraph-loader) |
+| **可视化管理图** | [Hubble Web UI](quickstart/toolchain/hugegraph-hubble) |
 
 ### 生态系统一览
 
@@ -55,4 +55,4 @@ Apache HugeGraph 是一套完整的图数据库生态系统，支持 OLTP 实时
 | **分布式** | 海量存储、存算分离 | < 1000TB |
 | **Docker** | 快速体验 | 任意 |
 
-[📖 详细介绍](introduction/)
+[📖 详细介绍](introduction/README)

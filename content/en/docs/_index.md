@@ -15,11 +15,11 @@ Apache HugeGraph is a complete graph database ecosystem, supporting OLTP real-ti
 
 | I want to... | Start here |
 |----------|-----------|
-| **Run graph queries** (OLTP) | [HugeGraph Server Quickstart](quickstart/hugegraph/hugegraph-server.md) |
-| **Large-scale graph computing** (OLAP) | [Graph Computing Engine](quickstart/computing/hugegraph-computer.md) |
-| **Build AI/RAG applications** | [HugeGraph-AI](quickstart/hugegraph-ai) |
-| **Batch import data** | [HugeGraph Loader](quickstart/hugegraph-loader) |
-| **Visualize and manage graphs** | [Hubble Web UI](quickstart/hugegraph-hubble) |
+| **Run graph queries** (OLTP) | [HugeGraph Server Quickstart](quickstart/hugegraph/hugegraph-server) |
+| **Large-scale graph computing** (OLAP) | [Graph Computing Engine](quickstart/computing/hugegraph-computer) |
+| **Build AI/RAG applications** | [HugeGraph-AI](quickstart/hugegraph-ai/quick_start) |
+| **Batch import data** | [HugeGraph Loader](quickstart/toolchain/hugegraph-loader) |
+| **Visualize and manage graphs** | [Hubble Web UI](quickstart/toolchain/hugegraph-hubble) |
 
 ### Ecosystem Overview
 
@@ -55,4 +55,4 @@ Apache HugeGraph is a complete graph database ecosystem, supporting OLTP real-ti
 | **Distributed** | Massive storage, compute-storage separated | < 1000TB |
 | **Docker** | Quick start | Any |
 
-[📖 Detailed Introduction](introduction/)
+[📖 Detailed Introduction](introduction/README)
