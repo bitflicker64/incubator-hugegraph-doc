@@ -74,7 +74,7 @@ vim hugegraph-core/src/main/java/org/apache/hugegraph/HugeFactory.java
 # run test locally (optional)
 mvn test -Pcore-test,memory
 ```
-Note: In order to be consistent with the code style easily, if you use [IDEA](https://www.jetbrains.com/idea/) as your IDE, you can directly [import](https://www.jetbrains.com/help/idea/configuring-code-style.html) our code style [configuration file](./hugegraph-style.xml). 
+Note: In order to be consistent with the code style easily, if you use IDEA as your IDE, you can import our code style configuration file.
 
 ##### 3.2.1 添加第三方依赖
 
