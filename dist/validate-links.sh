@@ -3,9 +3,17 @@
 CONTENT_DIR="content"
 EXIT_CODE=0
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONTENT_ROOT="$(cd "$REPO_ROOT/$CONTENT_DIR" && pwd)"
+VERBOSE="${VERBOSE:-0}"
+
+log_verbose() {
+    [[ "$VERBOSE" == "1" ]] && echo "Info: $*"
+}
+
+
+ASSET_EXTENSIONS_REGEX='png|jpg|jpeg|svg|gif|webp|avif|ico|xml|yaml|yml|json|css|js|pdf|zip|tar.gz|woff|woff2|ttf|eot|mp4|webm'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)" || exit 1
+CONTENT_ROOT="$(cd "$REPO_ROOT/$CONTENT_DIR" && pwd)" || exit 1
 
 if [[ ! -d "$CONTENT_ROOT" ]]; then
     echo "Error: content directory not found. Run from repository root."
@@ -15,6 +23,12 @@ fi
 normalize_link() {
     local link="$1"
 
+    # Decode common URL-encoded characters explicitly
+    link="${link//%20/ }"   # space
+    link="${link//%23/#}"   # hash
+    link="${link//%2F/\/}"  # forward slash
+
+    # Generic percent-decoding for remaining cases
     link="${link//%/\\x}"
     link="$(printf '%b' "$link")"
 
@@ -58,16 +72,17 @@ resolve_real_path() {
     local path="$1"
 
     if command -v python3 >/dev/null 2>&1; then
-        # Use python to compute realpath which is tolerant of non existing final target
+        # Use Python to compute realpath which resolves symlinks AND normalizes paths
+        # Python's os.path.realpath is tolerant of non-existent final targets
         python3 - <<'PY' "$path"
 import os
 import sys
 p = sys.argv[1]
-# os.path.realpath resolves symlinks for existing components and otherwise returns a normalized path
 print(os.path.realpath(p))
 PY
     else
-        # Fallback to the safe canonicalize_path output if python3 is not available
+        # Fallback: Normalize without symlink resolution if Python3 unavailable
+        # Note: This won't resolve symlinks, only normalize .. and . components
         canonicalize_path "$path"
     fi
 }
@@ -85,12 +100,14 @@ check_internal_link() {
     [[ -z "$clean_link" || "$clean_link" == "#" ]] && return 0
 
     if [[ "$clean_link" == "{{"* ]]; then
+        log_verbose "Skipping Hugo shortcode link: $link ($file:$line_no)"
         return 0
     fi
 
     local clean_lower="${clean_link,,}"
 
     if [[ "$clean_lower" == http://* || "$clean_lower" == https://* || "$clean_lower" == "//"* ]]; then
+        log_verbose "Skipping external link: $link ($file:$line_no)"
         return 0
     fi
 
@@ -105,7 +122,14 @@ check_internal_link() {
     elif [[ "$clean_link" == /cn/docs/* ]]; then
         target_path="$CONTENT_ROOT${clean_link}"
     elif [[ "$clean_link" == /* ]]; then
-        target_path="$CONTENT_ROOT/en${clean_link}"
+        # Skip validation for ambiguous absolute paths (Hugo runtime URLs)
+        location="$file"
+        [[ -n "$line_no" ]] && location="$file:$line_no"
+        echo "Warning: Skipping validation for ambiguous absolute path"
+        echo "  File: $location"
+        echo "  Link: $link"
+        echo "  Reason: Hugo runtime URL (not directly mappable to filesystem)"
+        return 0
     else
         local file_dir
         file_dir="$(cd "$(dirname "$file")" && pwd)"
@@ -128,22 +152,20 @@ check_internal_link() {
             ;;
     esac
 
-    case "$clean_lower" in
-        *.png|*.jpg|*.jpeg|*.svg|*.gif|*.xml|*.yaml|*.yml|*.json|*.css|*.js|*.pdf|*.zip|*.tar.gz)
-            if [[ -f "$target_path" ]]; then
-                return 0
-            else
-                location="$file"
-                [[ -n "$line_no" ]] && location="$file:$line_no"
-                echo "Error: Broken link"
-                echo "  File: $location"
-                echo "  Link: $link"
-                echo "  Target: $target_path"
-                EXIT_CODE=1
-                return
-            fi
-            ;;
-    esac
+    if [[ "$clean_lower" =~ \.(${ASSET_EXTENSIONS_REGEX})$ ]]; then
+        if [[ -f "$target_path" ]]; then
+            return 0
+        else
+            location="$file"
+            [[ -n "$line_no" ]] && location="$file:$line_no"
+            echo "Error: Broken link"
+            echo "  File: $location"
+            echo "  Link: $link"
+            echo "  Target: $target_path"
+            EXIT_CODE=1
+            return
+        fi
+    fi
 
     if [[ -f "$target_path" || -f "$target_path.md" || -f "$target_path/_index.md" || -f "$target_path/README.md" ]]; then
         return 0
@@ -170,6 +192,12 @@ while read -r FILE; do
         ((line_no++))
 
         if [[ "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
+          # NOTE:
+          # Code fence detection assumes fences are properly paired.
+          # If a Markdown file contains an unclosed or mismatched fence,
+          # subsequent content may be treated as code and skipped.
+          # This script does not attempt full Markdown validation.
+
             if $in_fence; then
                 in_fence=false
             else
@@ -184,10 +212,18 @@ while read -r FILE; do
             continue
         fi
 
-        inline_count=$(grep -o "\`" <<< "$line" | wc -l)
+        # NOTE:
+        # Inline code detection is heuristic.
+        # It assumes backticks are paired on the same line.
+        # Escaped backticks are ignored, but complex or malformed
+        # Markdown inline code spans may still be misdetected.
+
+        escaped_line="${line//\\\`/}"
+        inline_count=$(grep -o "\`" <<< "$escaped_line" | wc -l)
         if (( inline_count % 2 == 1 )); then
             CODE_LINES[$line_no]=1
         fi
+
     done < "$FILE"
 
     while read -r MATCH; do
