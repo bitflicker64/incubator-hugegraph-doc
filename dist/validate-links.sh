@@ -9,7 +9,6 @@ log_verbose() {
     [[ "$VERBOSE" == "1" ]] && echo "Info: $*"
 }
 
-
 ASSET_EXTENSIONS_REGEX='png|jpg|jpeg|svg|gif|webp|avif|ico|xml|yaml|yml|json|css|js|pdf|zip|tar.gz|woff|woff2|ttf|eot|mp4|webm'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)" || exit 1
@@ -104,7 +103,9 @@ check_internal_link() {
         return 0
     fi
 
-    local clean_lower="${clean_link,,}"
+    # Bash 3.2 compatible lowercase conversion
+    local clean_lower
+    clean_lower="$(printf "%s" "$clean_link" | tr '[:upper:]' '[:lower:]')"
 
     if [[ "$clean_lower" == http://* || "$clean_lower" == https://* || "$clean_lower" == "//"* ]]; then
         log_verbose "Skipping external link: $link ($file:$line_no)"
@@ -119,17 +120,29 @@ check_internal_link() {
 
     if [[ "$clean_link" == /docs/* ]]; then
         target_path="$CONTENT_ROOT/en${clean_link}"
+
     elif [[ "$clean_link" == /cn/docs/* ]]; then
         target_path="$CONTENT_ROOT${clean_link}"
+
+    elif [[ "$clean_link" == /community/* ]]; then
+        target_path="$CONTENT_ROOT/en${clean_link}"
+
+    elif [[ "$clean_link" == /blog/* ]]; then
+        target_path="$CONTENT_ROOT/en${clean_link}"
+
+    elif [[ "$clean_link" == /language/* ]]; then
+        target_path="$CONTENT_ROOT/en${clean_link}"
+
+    elif [[ "$clean_link" == /clients/* ]]; then
+        target_path="$REPO_ROOT/static${clean_link}"
+
     elif [[ "$clean_link" == /* ]]; then
-        # Skip validation for ambiguous absolute paths (Hugo runtime URLs)
-        location="$file"
-        [[ -n "$line_no" ]] && location="$file:$line_no"
-        echo "Warning: Skipping validation for ambiguous absolute path"
-        echo "  File: $location"
+        echo "Error: Unknown absolute path"
+        echo "  File: $file:$line_no"
         echo "  Link: $link"
-        echo "  Reason: Hugo runtime URL (not directly mappable to filesystem)"
-        return 0
+        EXIT_CODE=1
+        return
+
     else
         local file_dir
         file_dir="$(cd "$(dirname "$file")" && pwd)"
@@ -141,6 +154,7 @@ check_internal_link() {
 
     case "$target_path" in
         "$CONTENT_ROOT"/*) ;;
+        "$REPO_ROOT/static"/*) ;;
         *)
             location="$file"
             [[ -n "$line_no" ]] && location="$file:$line_no"
@@ -184,7 +198,7 @@ check_internal_link() {
 echo "Starting link validation..."
 
 while read -r FILE; do
-    declare -A CODE_LINES
+    CODE_LINES=""
     in_fence=false
     line_no=0
 
@@ -192,23 +206,23 @@ while read -r FILE; do
         ((line_no++))
 
         if [[ "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
-          # NOTE:
-          # Code fence detection assumes fences are properly paired.
-          # If a Markdown file contains an unclosed or mismatched fence,
-          # subsequent content may be treated as code and skipped.
-          # This script does not attempt full Markdown validation.
+            # NOTE:
+            # Code fence detection assumes fences are properly paired.
+            # If a Markdown file contains an unclosed or mismatched fence,
+            # subsequent content may be treated as code and skipped.
+            # This script does not attempt full Markdown validation.
 
             if $in_fence; then
                 in_fence=false
             else
                 in_fence=true
             fi
-            CODE_LINES[$line_no]=1
+            CODE_LINES="$CODE_LINES $line_no "
             continue
         fi
 
         if $in_fence; then
-            CODE_LINES[$line_no]=1
+            CODE_LINES="$CODE_LINES $line_no "
             continue
         fi
 
@@ -221,7 +235,7 @@ while read -r FILE; do
         escaped_line="${line//\\\`/}"
         inline_count=$(grep -o "\`" <<< "$escaped_line" | wc -l)
         if (( inline_count % 2 == 1 )); then
-            CODE_LINES[$line_no]=1
+            CODE_LINES="$CODE_LINES $line_no "
         fi
 
     done < "$FILE"
@@ -232,7 +246,7 @@ while read -r FILE; do
         LINE_NO="${MATCH%%:*}"
         LINK_PART="${MATCH#*:}"
 
-        [[ ${CODE_LINES[$LINE_NO]} ]] && continue
+        [[ "$CODE_LINES" == *" $LINE_NO "* ]] && continue
 
         LINK="${LINK_PART#*](}"
         LINK="${LINK%)}"
