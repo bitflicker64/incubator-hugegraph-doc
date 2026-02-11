@@ -1,4 +1,6 @@
 #!/bin/bash
+set -o errexit
+set -o pipefail
 
 CONTENT_DIR="content"
 EXIT_CODE=0
