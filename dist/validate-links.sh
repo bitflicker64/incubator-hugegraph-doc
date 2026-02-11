@@ -8,10 +8,12 @@ EXIT_CODE=0
 VERBOSE="${VERBOSE:-0}"
 
 log_verbose() {
-    [[ "$VERBOSE" == "1" ]] && echo "Info: $*"
+    if [[ "$VERBOSE" == "1" ]]; then
+        echo "Info: $*"
+    fi
 }
 
-ASSET_EXTENSIONS_REGEX='png|jpg|jpeg|svg|gif|webp|avif|ico|xml|yaml|yml|json|css|js|pdf|zip|tar.gz|woff|woff2|ttf|eot|mp4|webm'
+ASSET_EXTENSIONS_REGEX='png|jpg|jpeg|svg|gif|webp|avif|ico|xml|yaml|yml|json|css|js|pdf|zip|tar\.gz|woff|woff2|ttf|eot|mp4|webm'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)" || exit 1
 CONTENT_ROOT="$(cd "$REPO_ROOT/$CONTENT_DIR" && pwd)" || exit 1
@@ -47,15 +49,19 @@ canonicalize_path() {
     local path="$1"
     local result=()
     local part
+    local parts
 
+    # Bash 3.2 compatible: use here-string
     IFS='/' read -r -a parts <<< "$path"
 
     for part in "${parts[@]}"; do
         if [[ -z "$part" || "$part" == "." ]]; then
             continue
         elif [[ "$part" == ".." ]]; then
+            # Bash 3.2 compatible: calculate last index instead of using -1
             if [[ ${#result[@]} -gt 0 ]]; then
-                unset 'result[-1]'
+                local last_idx=$((${#result[@]} - 1))
+                unset "result[$last_idx]"
             fi
         else
             result+=("$part")
@@ -105,7 +111,6 @@ check_internal_link() {
         return 0
     fi
 
-    # Bash 3.2 compatible lowercase conversion
     local clean_lower
     clean_lower="$(printf "%s" "$clean_link" | tr '[:upper:]' '[:lower:]')"
 
@@ -139,9 +144,13 @@ check_internal_link() {
         target_path="$REPO_ROOT/static${clean_link}"
 
     elif [[ "$clean_link" == /* ]]; then
-        echo "Error: Unknown absolute path"
-        echo "  File: $file:$line_no"
+        location="$file"
+        [[ -n "$line_no" ]] && location="$file:$line_no"
+
+        echo "Error: Unsupported absolute internal path (cannot validate deterministically)"
+        echo "  File: $location"
         echo "  Link: $link"
+
         EXIT_CODE=1
         return
 
@@ -199,14 +208,21 @@ check_internal_link() {
 
 echo "Starting link validation..."
 
-while read -r FILE; do
+while IFS= read -r FILE; do
+
     CODE_LINES=""
     in_fence=false
     line_no=0
 
-    while IFS= read -r line; do
-        ((line_no++))
-
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        ((++line_no))
+        # NOTE:
+        # Code fence detection is heuristic and does not validate proper pairing.
+        # The logic simply toggles state when encountering ``` or ~~~ markers.
+        # If a Markdown file contains an unclosed fence or mismatched fence types,
+        # all subsequent lines may be treated as code and skipped from validation.
+        # This behavior is intentional to keep the validator lightweight and
+        # avoids implementing a full Markdown parser. Such cases require manual review.
         if [[ "$line" =~ ^[[:space:]]*(\`\`\`|~~~) ]]; then
             # NOTE:
             # Code fence detection assumes fences are properly paired.
@@ -229,20 +245,22 @@ while read -r FILE; do
         fi
 
         # NOTE:
-        # Inline code detection is heuristic.
-        # It assumes backticks are paired on the same line.
-        # Escaped backticks are ignored, but complex or malformed
-        # Markdown inline code spans may still be misdetected.
-
+        # Inline code detection is heuristic and intentionally simplistic.
+        # The logic assumes backticks are properly paired within a single line
+        # after removing escaped backticks. Malformed Markdown, complex inline
+        # constructs, or unusual escaping patterns may cause false positives
+        # or false negatives. This validator does not implement a full Markdown
+        # parser and therefore cannot guarantee perfect inline code detection.
         escaped_line="${line//\\\`/}"
-        inline_count=$(grep -o "\`" <<< "$escaped_line" | wc -l)
+        inline_count=$(printf "%s\n" "$escaped_line" | grep -o "\`" || true)
+        inline_count=$(printf "%s\n" "$inline_count" | wc -l)
         if (( inline_count % 2 == 1 )); then
             CODE_LINES="$CODE_LINES $line_no "
         fi
 
     done < "$FILE"
 
-    while read -r MATCH; do
+    while read -r MATCH || [[ -n "$MATCH" ]]; do
         [[ -z "$MATCH" ]] && continue
 
         LINE_NO="${MATCH%%:*}"
@@ -254,10 +272,10 @@ while read -r FILE; do
         LINK="${LINK%)}"
 
         check_internal_link "$LINK" "$FILE" "$LINE_NO"
-    done < <(grep -n -oE '\]\([^)]+\)' "$FILE")
+    done < <(grep -n -oE '\]\([^)]+\)' "$FILE" || true)
 
     unset CODE_LINES
-done < <(find "$CONTENT_ROOT" -type f -name "*.md")
+done < <(find "$CONTENT_ROOT" -type f -name "*.md" 2>/dev/null || true)
 
 if [[ $EXIT_CODE -eq 0 ]]; then
     echo "Link validation passed!"
