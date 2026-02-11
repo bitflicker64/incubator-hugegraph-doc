@@ -134,8 +134,11 @@ check_internal_link() {
     elif [[ "$clean_link" == /community/* ]]; then
         target_path="$CONTENT_ROOT/en${clean_link}"
 
-    elif [[ "$clean_link" == /blog/* ]]; then
-        target_path="$CONTENT_ROOT/en${clean_link}"
+    elif [[ "$clean_link" == /blog/* || "$clean_link" == /cn/blog/* ]]; then
+    # Blog URLs are permalink-based and don't map 1:1 to content file paths.
+    # Skip deterministic filesystem validation for these routes.
+    log_verbose "Skipping permalink-based blog link: $link ($file:$line_no)"
+    return 0
 
     elif [[ "$clean_link" == /language/* ]]; then
         target_path="$CONTENT_ROOT/en${clean_link}"
@@ -252,8 +255,8 @@ while IFS= read -r FILE; do
         # or false negatives. This validator does not implement a full Markdown
         # parser and therefore cannot guarantee perfect inline code detection.
         escaped_line="${line//\\\`/}"
-        inline_count=$(printf "%s\n" "$escaped_line" | grep -o "\`" || true)
-        inline_count=$(printf "%s\n" "$inline_count" | wc -l)
+        only_ticks="${escaped_line//[^\`]/}"
+        inline_count=${#only_ticks}
         if (( inline_count % 2 == 1 )); then
             CODE_LINES="$CODE_LINES $line_no "
         fi

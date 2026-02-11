@@ -9,7 +9,6 @@
 * [Develop with HugeGraph-Client](quickstart/client/hugegraph-client)
 * [Manage with HugeGraph-Tools](quickstart/toolchain/hugegraph-tools)
 * [Analysis with HugeGraph-Computer](quickstart/computing/hugegraph-computer)
-* [Display with HugeGraph-Studio](quickstart/hugegraph-studio)
 
 ## Config
 * [Config Guide](config/config-guide)
